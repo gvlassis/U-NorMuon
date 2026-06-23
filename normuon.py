@@ -32,7 +32,7 @@ def zeropower_via_newtonschulz5(G, steps=5):
 
 
 
-def normuon_update(grad, momentum, second_momentum, beta=0.95, beta2=0.95, ns_steps=5, nesterov=True):
+def unormuon_update(grad, momentum, second_momentum, beta=0.95, beta2=0.95, ns_steps=5, nesterov=True):
     momentum.lerp_(grad, 1 - beta)
     update = grad.lerp_(momentum, beta) if nesterov else momentum
     original_shape = None
@@ -52,13 +52,13 @@ def normuon_update(grad, momentum, second_momentum, beta=0.95, beta2=0.95, ns_st
     update.mul_(step_size)
     vnorm_new = update.norm(dim=(-2,-1), keepdim=True)
     update.mul_(vnorm / (vnorm_new.add_(1e-10))) # This scaling keep the update norm the same as pre-normalization
-    ##################################################
-    update *= max(1, grad.size(-2) / grad.size(-1))**0.5
+    ############## U-NorMuon scaling #################
+    update *= 1
     return update
 
 
 # modified from https://github.com/KellerJordan/Muon/blob/master/muon.py
-class NorMuon(torch.optim.Optimizer):
+class UNorMuon(torch.optim.Optimizer):
     def __init__(self, params, lr=0.02, weight_decay=0, momentum=0.95, beta2=0.95):
         defaults = dict(lr=lr, weight_decay=weight_decay, momentum=momentum, beta2=beta2)
         assert isinstance(params, list) and len(params) >= 1 and isinstance(params[0], torch.nn.Parameter)
@@ -87,7 +87,7 @@ class NorMuon(torch.optim.Optimizer):
                     if len(state) == 0:
                         state["momentum_buffer"] = torch.zeros_like(p)
                         state["second_momentum_buffer"] = torch.zeros_like(p[..., 0:1])
-                    update = normuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"], beta=group["momentum"], beta2=group["beta2"])
+                    update = unormuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"], beta=group["momentum"], beta2=group["beta2"])
                     if group["weight_decay"] and had_grad:
                         p.mul_(1 - group["lr"] * group["weight_decay"])
                     p.add_(update.reshape(p.shape), alpha=-group["lr"])
@@ -96,7 +96,7 @@ class NorMuon(torch.optim.Optimizer):
         return loss
 
 # modified from https://github.com/KellerJordan/Muon/blob/master/muon.py
-class SingleDeviceNorMuon(torch.optim.Optimizer):
+class SingleDeviceUNorMuon(torch.optim.Optimizer):
     """
     Muon variant for usage in non-distributed settings.
     """
@@ -122,7 +122,7 @@ class SingleDeviceNorMuon(torch.optim.Optimizer):
                 if len(state) == 0:
                     state["momentum_buffer"] = torch.zeros_like(p)
                     state["second_momentum_buffer"] = torch.zeros_like(p[...,0:1])
-                update = normuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"], beta=group["momentum"], beta2=group["beta2"])
+                update = unormuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"], beta=group["momentum"], beta2=group["beta2"])
                 if group["weight_decay"] and had_grad:
                     p.mul_(1 - group["lr"] * group["weight_decay"])
                 p.add_(update.reshape(p.shape), alpha=-group["lr"])
@@ -138,10 +138,10 @@ def adam_update(grad, buf1, buf2, step, betas, eps):
     return buf1c / (buf2c.sqrt() + eps)
 
 
-class NorMuonWithAuxAdam(torch.optim.Optimizer):
+class UNorMuonWithAuxAdam(torch.optim.Optimizer):
     """
-    Distributed NorMuon variant paired with an auxiliary Adam optimizer for parameters that are not
-    compatible with NorMuon. Groups intended for NorMuon should set `use_muon=True`.
+    Distributed UNorMuon variant paired with an auxiliary Adam optimizer for parameters that are not
+    compatible with UNorMuon. Groups intended for UNorMuon should set `use_muon=True`.
     """
     def __init__(self, param_groups):
         for group in param_groups:
@@ -183,7 +183,7 @@ class NorMuonWithAuxAdam(torch.optim.Optimizer):
                         if len(state) == 0:
                             state["momentum_buffer"] = torch.zeros_like(p)
                             state["second_momentum_buffer"] = torch.zeros_like(p[..., 0:1])
-                        update = normuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"],
+                        update = unormuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"],
                                                 beta=group["momentum"], beta2=group["beta2"])
                         if group["weight_decay"] and had_grad:
                             p.mul_(1 - group["lr"] * group["weight_decay"])
@@ -209,9 +209,9 @@ class NorMuonWithAuxAdam(torch.optim.Optimizer):
         return loss
 
 
-class SingleDeviceNorMuonWithAuxAdam(torch.optim.Optimizer):
+class SingleDeviceUNorMuonWithAuxAdam(torch.optim.Optimizer):
     """
-    Non-distributed counterpart to NorMuonWithAuxAdam.
+    Non-distributed counterpart to UNorMuonWithAuxAdam.
     """
     def __init__(self, param_groups):
         for group in param_groups:
@@ -248,7 +248,7 @@ class SingleDeviceNorMuonWithAuxAdam(torch.optim.Optimizer):
                     if len(state) == 0:
                         state["momentum_buffer"] = torch.zeros_like(p)
                         state["second_momentum_buffer"] = torch.zeros_like(p[..., 0:1])
-                    update = normuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"],
+                    update = unormuon_update(p.grad, state["momentum_buffer"], state["second_momentum_buffer"],
                                             beta=group["momentum"], beta2=group["beta2"])
                     if group["weight_decay"] and had_grad:
                         p.mul_(1 - group["lr"] * group["weight_decay"])
