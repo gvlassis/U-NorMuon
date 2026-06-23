@@ -6,15 +6,14 @@ from setuptools import setup
 README = Path(__file__).with_name("README.md").read_text(encoding="utf-8")
 
 setup(
-    name="normuon",
+    name="unormuon",
     version="0.1.0",
-    description="NorMuon optimizers.",
+    description="UNorMuon optimizers.",
     long_description=README,
     long_description_content_type="text/markdown",
-    author="Zichong Li",
-    url="https://github.com/zichongli5/NorMuon",
-    py_modules=["normuon"],
-    install_requires=["torch"],
+    author="Georgios Vlassis",
+    url="https://github.com/gvlassis/U-NorMuon",
+    py_modules=["unormuon"],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
